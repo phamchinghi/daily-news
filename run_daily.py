@@ -64,18 +64,52 @@ VIETNAMESE_WEEKDAYS = {
 }
 
 
+_CATEGORY_HASHTAGS: dict[str, str] = {
+    "bongda":     "#bongda #worldcup2026 #tructiepbongda",
+    "thethao":    "#thethao #sportvietnam",
+    "thoisu":     "#thoisu #tintucvietnam #chinhsach",
+    "thegioi":    "#thegioi #tintucquocte",
+    "kinhdoanh":  "#kinhdoanh #chungkhoan #kinhte",
+    "khoahoc":    "#khoahoc #congnghe #science",
+    "sohoa":      "#sohoa #congnghe #ai",
+    "giaitri":    "#giaitri #showbiz #nghesivietnam",
+    "phapluat":   "#phapluat #tintucphapluat",
+    "suckhoe":    "#suckhoe #suckhoedoisong",
+    "giaoduc":    "#giaoduc #tuyensinh",
+    "doisong":    "#doisong #lifestyle",
+    "xe":         "#xe #otovietnam #xedien",
+    "dulich":     "#dulich #travel #vietnam",
+    "batdongsan": "#batdongsan #nhadat",
+}
+
 def build_caption(items: list[tuple[NewsItem, str]]) -> str:
     """items: list of (NewsItem, link)."""
     now = datetime.now(VN_TZ)
     weekday = VIETNAMESE_WEEKDAYS[now.weekday()]
-    header = f"📢 ĐIỂM TIN BUỔI SÁNG {weekday}\n\n"
-    lines = ["📌 Tin chính hôm nay:\n"]
+    date_str = now.strftime("%d/%m/%Y")
+
+    header = f"📢 DIEM TIN SANG {weekday} | {date_str}\n\n"
+    lines = ["Tin noi bat hom nay:\n"]
     for i, (item, link) in enumerate(items, 1):
         lines.append(f"{i}. {item.title}")
         if link:
-            lines.append(f"   🔗 {link}\n")
-    lines.append("\n#odaycotintuc #diemtin")
-    return header + "\n".join(lines)
+            lines.append(f"   {link}\n")
+
+    # Hashtag cơ bản + theo chuyên mục
+    base_tags = "#odaycotintuc #tintuc #tinnoibat #vietnamnews"
+    extra_tags = " ".join(
+        _CATEGORY_HASHTAGS[it.category]
+        for it, _ in items
+        if it.category in _CATEGORY_HASHTAGS
+    )
+    hashtags = f"{base_tags} {extra_tags}".strip()
+
+    cta = (
+        "\n\nTheo doi trang de cap nhat tin tuc moi nhat moi sang!"
+        "\nBan quan tam den tin nao nhat? Binh luan ben duoi nhe!"
+    )
+
+    return header + "\n".join(lines) + cta + "\n\n" + hashtags
 
 
 def main() -> int:
@@ -147,7 +181,8 @@ def main() -> int:
                 title=art.title,
                 summary=summary,
                 image=art.image,
-                source=f"{art.source} - {art.category}" if art.category else art.source,
+                source=art.source,
+                category=art.category,
             )
             path = out_dir / f"{i:02d}.jpg"
             render_card(item, path)

@@ -1,75 +1,102 @@
 """
-News Card Generator - tạo ảnh news card theo style Ở Đây Có Tin Tức.
+News Card Generator - style Ở Đây Có Tin Tức.
 
 Layout: 1200x1600 (3:4)
-- Ảnh trên: chiếm ~55% chiều cao (1200x880)
-- Khối vàng dưới: chiếm ~45% (1200x720)
-  + Tiêu đề: bold, ~64-72px, max 3 dòng
-  + Mô tả: regular, ~36px, max 3 dòng
-- Watermark "Ở Đây Có Tin Tức" góc trên phải (trắng, in đè ảnh)
-- Source góc dưới phải (xám đậm)
+- Ảnh tin tức: ~54% trên (1200×860)
+- Accent bar đỏ: 8px
+- Panel navy: ~45% còn lại
+  + Category badge (top-left, trên ảnh)
+  + Brand watermark (top-right, trên ảnh, stroke trắng)
+  + Tiêu đề: bold white, 68px, max 3 dòng
+  + Mô tả: light blue, 34px, max 4 dòng
+  + Source: vàng, bottom-right
 """
-
 from __future__ import annotations
 
 import io
-import textwrap
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 import requests
 from PIL import Image, ImageDraw, ImageFont
 
 
-# ---------------- Config ----------------
+# ── Palette (từ avatar kênh) ──────────────────────────────────────
 
 CARD_W, CARD_H = 1200, 1600
-IMG_H = 880                # phần ảnh phía trên
-YELLOW = (255, 193, 7)     # #FFC107
-TEXT_DARK = (17, 17, 17)
-TEXT_MUTED = (60, 60, 60)
-WATERMARK_COLOR = (255, 255, 255)
-SOURCE_COLOR = (90, 90, 90)
+IMG_H          = 860
 
-PADDING_X = 60
-TITLE_TOP = IMG_H + 60
-TITLE_SIZE = 72
-TITLE_LINE_H = 88
-DESC_SIZE = 36
-DESC_LINE_H = 52
-DESC_GAP = 40              # khoảng cách tiêu đề -> mô tả
+NAVY           = (13,  27, 110)    # #0D1B6E  – panel chính
+RED            = (227, 30,  36)    # #E31E24  – accent / badge breaking
+YELLOW         = (245, 184,  0)    # #F5B800  – tagline / source
+WHITE          = (255, 255, 255)
+TEXT_DESC      = (176, 196, 222)   # #B0C4DE  – mô tả (light steel blue)
+STROKE_DARK    = (0,   0,  30)     # stroke cho text trên ảnh
 
-# ---------------- Data ----------------
+ACCENT_BAR_H   = 8
+PADDING_X      = 64
+TITLE_TOP      = IMG_H + ACCENT_BAR_H + 60
+TITLE_SIZE     = 68
+TITLE_LINE_H   = 86
+DESC_SIZE      = 34
+DESC_LINE_H    = 50
+DESC_GAP       = 38
+
+BADGE_PAD_X    = 18
+BADGE_PAD_Y    = 10
+BADGE_FONT_SZ  = 28
+BADGE_RADIUS   = 6
+BADGE_TOP      = 40
+BADGE_LEFT     = PADDING_X
+
+BRAND_SIZE     = 34
+
+# category key → (label, badge_color)
+CATEGORY_STYLE: dict[str, tuple[str, tuple]] = {
+    "bongda":      ("BONG DA",        RED),
+    "thethao":     ("THE THAO",       RED),
+    "thoisu":      ("THOI SU",        RED),
+    "thegioi":     ("THE GIOI",       (0,  80, 180)),
+    "kinhdoanh":   ("KINH TE",        (0,  80, 180)),
+    "khoahoc":     ("KHOA HOC",       (0,  80, 180)),
+    "sohoa":       ("CONG NGHE",      (0,  80, 180)),
+    "giaitri":     ("GIAI TRI",       (180, 60,  0)),
+    "phapluat":    ("PHAP LUAT",      (0,  80, 180)),
+    "gocnhin":     ("GOC NHIN",       (0,  80, 180)),
+    "batdongsan":  ("BAT DONG SAN",   (0,  80, 180)),
+    "suckhoe":     ("SUC KHOE",       (190,  0, 60)),
+    "giaoduc":     ("GIAO DUC",       (0,  80, 180)),
+    "doisong":     ("DOI SONG",       (140, 90,  0)),
+    "xe":          ("XE",             (0,  80, 180)),
+    "dulich":      ("DU LICH",        (0, 130, 100)),
+    "ykien":       ("Y KIEN",         (0,  80, 180)),
+    "tamsu":       ("TAM SU",         (100, 50, 130)),
+    "thuGian":     ("THU GIAN",       (80, 120,  0)),
+    "home":        ("TIN MOI",        RED),
+}
+
 
 @dataclass
 class NewsItem:
     title: str
     summary: str
-    image: str | Path        # URL hoặc local path
-    source: str = ""         # vd: "vnexpress.net - Sức khỏe"
-    brand: str = "Ở Đây Có Tin Tức"
+    image: str | Path
+    source: str   = ""
+    brand: str    = "O Day Co Tin Tuc"
+    category: str = ""
 
 
-# ---------------- Font loading ----------------
-
-# Be Vietnam Pro hỗ trợ dấu tiếng Việt rất tốt. Nếu chưa có,
-# fonts/ sẽ rỗng và code fallback sang DejaVuSans (có sẵn trên Ubuntu).
+# ── Font loading ──────────────────────────────────────────────────
 
 FONT_DIR = Path(__file__).parent / "fonts"
 
 def _load_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
-    candidates_bold = [
-        FONT_DIR / "BeVietnamPro-Bold.ttf",
-        FONT_DIR / "Inter-Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    candidates = [
+        FONT_DIR / ("BeVietnamPro-Bold.ttf" if bold else "BeVietnamPro-Regular.ttf"),
+        FONT_DIR / ("Inter-Bold.ttf"        if bold else "Inter-Regular.ttf"),
+        f"/usr/share/fonts/truetype/dejavu/DejaVuSans{'-Bold' if bold else ''}.ttf",
     ]
-    candidates_regular = [
-        FONT_DIR / "BeVietnamPro-Regular.ttf",
-        FONT_DIR / "Inter-Regular.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-    ]
-    for p in (candidates_bold if bold else candidates_regular):
+    for p in candidates:
         try:
             return ImageFont.truetype(str(p), size)
         except (OSError, IOError):
@@ -77,24 +104,14 @@ def _load_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
     return ImageFont.load_default()
 
 
-# ---------------- Text wrapping ----------------
+# ── Text helpers ──────────────────────────────────────────────────
 
-def _wrap_text(
-    draw: ImageDraw.ImageDraw,
-    text: str,
-    font: ImageFont.FreeTypeFont,
-    max_width: int,
-    max_lines: int,
-) -> list[str]:
-    """Wrap text theo pixel width thật (chính xác hơn textwrap theo ký tự)."""
+def _wrap_text(draw, text, font, max_width, max_lines):
     words = text.split()
-    lines: list[str] = []
-    current = ""
-
+    lines, current = [], ""
     for word in words:
         trial = f"{current} {word}".strip()
-        w = draw.textlength(trial, font=font)
-        if w <= max_width:
+        if draw.textlength(trial, font=font) <= max_width:
             current = trial
         else:
             if current:
@@ -104,21 +121,27 @@ def _wrap_text(
                 break
     if current and len(lines) < max_lines:
         lines.append(current)
-
-    # Truncate dòng cuối nếu vẫn còn chữ thừa
     if len(lines) == max_lines:
         consumed = " ".join(lines)
-        remaining = text[len(consumed):].strip()
-        if remaining:
+        if text[len(consumed):].strip():
             last = lines[-1]
-            ellipsis = "…"
-            while draw.textlength(last + ellipsis, font=font) > max_width and last:
+            while draw.textlength(last + "...", font=font) > max_width and last:
                 last = last[:-1]
-            lines[-1] = last + ellipsis
+            lines[-1] = last + "..."
     return lines
 
 
-# ---------------- Image helpers ----------------
+def _stroke_text(draw, pos, text, font, fill, stroke=STROKE_DARK, sw=2):
+    """Draw text với viền đen mỏng để dễ đọc trên ảnh sáng."""
+    x, y = pos
+    for dx in range(-sw, sw + 1):
+        for dy in range(-sw, sw + 1):
+            if dx != 0 or dy != 0:
+                draw.text((x + dx, y + dy), text, font=font, fill=stroke)
+    draw.text(pos, text, font=font, fill=fill)
+
+
+# ── Image helpers ─────────────────────────────────────────────────
 
 def _load_image(src: str | Path) -> Image.Image:
     if isinstance(src, str) and src.startswith(("http://", "https://")):
@@ -129,77 +152,77 @@ def _load_image(src: str | Path) -> Image.Image:
 
 
 def _cover_crop(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
-    """Crop kiểu CSS object-fit: cover."""
     src_w, src_h = img.size
-    src_ratio = src_w / src_h
-    tgt_ratio = target_w / target_h
-    if src_ratio > tgt_ratio:
-        # Source rộng hơn -> crop 2 bên
-        new_w = int(src_h * tgt_ratio)
+    if src_w / src_h > target_w / target_h:
+        new_w = int(src_h * target_w / target_h)
         left = (src_w - new_w) // 2
         img = img.crop((left, 0, left + new_w, src_h))
     else:
-        new_h = int(src_w / tgt_ratio)
+        new_h = int(src_w * target_h / target_w)
         top = (src_h - new_h) // 2
         img = img.crop((0, top, src_w, top + new_h))
     return img.resize((target_w, target_h), Image.LANCZOS)
 
 
-# ---------------- Main render ----------------
+# ── Main render ───────────────────────────────────────────────────
 
 def render_card(item: NewsItem, output_path: str | Path) -> Path:
-    canvas = Image.new("RGB", (CARD_W, CARD_H), YELLOW)
+    # Canvas nền navy
+    canvas = Image.new("RGB", (CARD_W, CARD_H), NAVY)
 
-    # 1. Ảnh trên
-    photo = _load_image(item.image)
-    photo = _cover_crop(photo, CARD_W, IMG_H)
+    # 1. Ảnh tin tức (top)
+    photo = _cover_crop(_load_image(item.image), CARD_W, IMG_H)
     canvas.paste(photo, (0, 0))
-
     draw = ImageDraw.Draw(canvas)
 
-    # 2. Watermark brand góc phải trên (đè lên ảnh)
-    brand_font = _load_font(36, bold=True)
+    # 2. Brand watermark (top-right, trên ảnh)
+    brand_font = _load_font(BRAND_SIZE, bold=True)
     brand_w = draw.textlength(item.brand, font=brand_font)
+    _stroke_text(draw, (CARD_W - PADDING_X - brand_w, 36), item.brand, brand_font, WHITE)
+
+    # 3. Category badge (top-left, trên ảnh)
+    cat_key = item.category.lower()
+    label, badge_color = CATEGORY_STYLE.get(cat_key, ("TIN TUC", RED))
+    badge_font = _load_font(BADGE_FONT_SZ, bold=True)
+    label_w = draw.textlength(label, font=badge_font)
+    badge_rect = [
+        BADGE_LEFT,
+        BADGE_TOP,
+        BADGE_LEFT + label_w + BADGE_PAD_X * 2,
+        BADGE_TOP + BADGE_FONT_SZ + BADGE_PAD_Y * 2,
+    ]
+    draw.rounded_rectangle(badge_rect, radius=BADGE_RADIUS, fill=badge_color)
     draw.text(
-        (CARD_W - PADDING_X - brand_w, 40),
-        item.brand,
-        font=brand_font,
-        fill=WATERMARK_COLOR,
+        (BADGE_LEFT + BADGE_PAD_X, BADGE_TOP + BADGE_PAD_Y),
+        label, font=badge_font, fill=WHITE,
     )
 
-    # 3. Tiêu đề
+    # 4. Red accent bar (giữa ảnh và panel)
+    draw.rectangle([0, IMG_H, CARD_W, IMG_H + ACCENT_BAR_H], fill=RED)
+
+    # 5. Tiêu đề (white, bold)
     title_font = _load_font(TITLE_SIZE, bold=True)
-    title_lines = _wrap_text(
-        draw, item.title, title_font,
-        max_width=CARD_W - 2 * PADDING_X,
-        max_lines=3,
-    )
+    title_lines = _wrap_text(draw, item.title, title_font, CARD_W - 2 * PADDING_X, 3)
     y = TITLE_TOP
     for line in title_lines:
-        draw.text((PADDING_X, y), line, font=title_font, fill=TEXT_DARK)
+        draw.text((PADDING_X, y), line, font=title_font, fill=WHITE)
         y += TITLE_LINE_H
 
-    # 4. Mô tả - bắt đầu sau tiêu đề + khoảng cách
+    # 6. Mô tả (light steel blue)
     y += DESC_GAP
-    desc_font = _load_font(DESC_SIZE, bold=False)
-    desc_lines = _wrap_text(
-        draw, item.summary, desc_font,
-        max_width=CARD_W - 2 * PADDING_X,
-        max_lines=4,
-    )
+    desc_font = _load_font(DESC_SIZE)
+    desc_lines = _wrap_text(draw, item.summary, desc_font, CARD_W - 2 * PADDING_X, 4)
     for line in desc_lines:
-        draw.text((PADDING_X, y), line, font=desc_font, fill=TEXT_MUTED)
+        draw.text((PADDING_X, y), line, font=desc_font, fill=TEXT_DESC)
         y += DESC_LINE_H
 
-    # 5. Source góc phải dưới
+    # 7. Source (yellow, bottom-right)
     if item.source:
-        src_font = _load_font(28, bold=False)
+        src_font = _load_font(26)
         src_w = draw.textlength(item.source, font=src_font)
         draw.text(
-            (CARD_W - PADDING_X - src_w, CARD_H - 60),
-            item.source,
-            font=src_font,
-            fill=SOURCE_COLOR,
+            (CARD_W - PADDING_X - src_w, CARD_H - 56),
+            item.source, font=src_font, fill=YELLOW,
         )
 
     out = Path(output_path)
@@ -209,16 +232,16 @@ def render_card(item: NewsItem, output_path: str | Path) -> Path:
 
 
 if __name__ == "__main__":
-    # Demo nhanh
     demo = NewsItem(
-        title="Hantavirus - bệnh dễ nhầm với cúm nhưng chuyển nặng nhanh",
+        title="Hantavirus - benh de nham voi cum nhung chuyen nang nhanh",
         summary=(
-            "Người mắc Hantavirus có thể chỉ sốt nhẹ, đau cơ như cúm "
-            "nhưng sau đó nhanh chóng rơi vào suy hô hấp cấp, phù phổi, "
-            "tụt huyết áp và sốc tim."
+            "Nguoi mac Hantavirus co the chi sot nhe, dau co nhu cum "
+            "nhung sau do nhanh chong roi vao suy ho hap cap, phu phoi, "
+            "tut huyet ap va soc tim."
         ),
         image="https://images.unsplash.com/photo-1584634731339-252c581abfc5?w=1600",
-        source="vnexpress.net - Sức khỏe",
+        source="vnexpress.net",
+        category="suckhoe",
     )
     path = render_card(demo, "output/demo.jpg")
     print(f"Saved: {path}")

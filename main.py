@@ -90,7 +90,7 @@ def run_manual(args, outdir: Path) -> None:
 
 
 def main():
-    p = argparse.ArgumentParser(description="News Card Generator (J2TEAM style)")
+    p = argparse.ArgumentParser(description="News Card Generator (Ở Đây Có Tin Tức style)")
     p.add_argument("--outdir", default="output", help="Output directory")
 
     # Mode feed

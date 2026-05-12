@@ -28,14 +28,34 @@ from summarizer import Summarizer, fallback_summary
 
 # ---------------- Config ----------------
 
-FEEDS_TO_USE = [
-    "vnexpress_home",
-    "vnexpress_health",
-    "vnexpress_world",
-    "vnexpress_biz",
+# Feeds bóng đá/thể thao — luôn lấy trước, đặt đầu album
+SPORT_FEEDS = [
+    "vnexpress_bongda",
+    "vnexpress_thethao",
+    "vnexpress_thoisu",
 ]
-MAX_CARDS = 4          # số card mỗi bài (Facebook hiển thị tốt 4-6 ảnh)
-PER_FEED_LIMIT = 2     # lấy 2 tin / feed, sau đó pick top
+
+# Feeds tin tức chung — điền vào các slot còn lại
+OTHER_FEEDS = [
+    "vnexpress_thegioi",
+    "vnexpress_kinhdoanh",
+    "vnexpress_khoahoc",
+    "vnexpress_sohoa",
+    "vnexpress_giaitri",
+    "vnexpress_phapluat",
+    "vnexpress_gocnhin",
+    "vnexpress_batdongsan",
+    "vnexpress_suckhoe",
+    "vnexpress_giaoduc",
+    "vnexpress_doisong",
+    "vnexpress_xe",
+    "vnexpress_dulich",
+    "vnexpress_thuGian",
+]
+
+MAX_CARDS = 20          # số card mỗi bài (Facebook hiển thị tốt 4-6 ảnh)
+MAX_SPORT_CARDS = 2    # tối đa 1 card thể thao/bóng đá (đứng đầu album)
+PER_FEED_LIMIT = 2     # lấy 2 tin / feed
 VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
 VIETNAMESE_WEEKDAYS = {
@@ -54,32 +74,43 @@ def build_caption(items: list[tuple[NewsItem, str]]) -> str:
         lines.append(f"{i}. {item.title}")
         if link:
             lines.append(f"   🔗 {link}\n")
-    lines.append("\n#j2team_news #diemtin")
+    lines.append("\n#odaycotintuc #diemtin")
     return header + "\n".join(lines)
 
 
 def main() -> int:
     print(f"=== Daily run @ {datetime.now(VN_TZ).isoformat()} ===")
 
-    # 1. Fetch
-    all_articles = []
-    for feed in FEEDS_TO_USE:
-        try:
-            articles = fetch_feed(feed, limit=PER_FEED_LIMIT)
-            print(f"[fetch] {feed}: {len(articles)} articles")
-            all_articles.extend(articles)
-        except Exception as e:
-            print(f"[fetch] {feed} FAILED: {e}")
+    # 1. Fetch — bóng đá/thể thao trước, sau đó tin tức chung
+    def fetch_all(feeds: list[str]) -> list:
+        results = []
+        for feed in feeds:
+            try:
+                articles = fetch_feed(feed, limit=PER_FEED_LIMIT)
+                print(f"[fetch] {feed}: {len(articles)} articles")
+                results.extend(articles)
+            except Exception as e:
+                print(f"[fetch] {feed} FAILED: {e}")
+        return results
 
-    # Lọc article có ảnh
-    valid = []
-    for art in all_articles:
-        if not art.image:
-            art.image = fetch_article_image(art.link)
-        if art.image:
-            valid.append(art)
-        if len(valid) >= MAX_CARDS:
-            break
+    sport_articles = fetch_all(SPORT_FEEDS)
+    other_articles = fetch_all(OTHER_FEEDS)
+
+    # Lọc article có ảnh — sport trước (tối đa MAX_SPORT_CARDS), sau đó other
+    def pick_with_image(articles: list, slots: int) -> list:
+        picked = []
+        for art in articles:
+            if not art.image:
+                art.image = fetch_article_image(art.link)
+            if art.image:
+                picked.append(art)
+            if len(picked) >= slots:
+                break
+        return picked
+
+    sport_valid = pick_with_image(sport_articles, MAX_SPORT_CARDS)
+    other_valid = pick_with_image(other_articles, MAX_CARDS - len(sport_valid))
+    valid = sport_valid + other_valid
 
     if not valid:
         print("[!] No articles with images. Abort.")
@@ -104,7 +135,11 @@ def main() -> int:
     for i, art in enumerate(valid, 1):
         try:
             if summarizer:
-                summary = summarizer.summarize(art.title, art.summary)
+                try:
+                    summary = summarizer.summarize(art.title, art.summary)
+                except Exception as e:
+                    print(f"[render] {i} Claude failed, using RSS fallback: {e}")
+                    summary = fallback_summary(art.summary)
             else:
                 summary = fallback_summary(art.summary)
 

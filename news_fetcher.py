@@ -12,14 +12,46 @@ import requests
 from bs4 import BeautifulSoup
 
 
-# Một số RSS feeds Việt Nam (chỉnh sửa tùy nhu cầu)
+# VnExpress RSS feeds - tất cả chuyên mục
 FEEDS = {
-    "vnexpress_home":   "https://vnexpress.net/rss/tin-moi-nhat.rss",
-    "vnexpress_health": "https://vnexpress.net/rss/suc-khoe.rss",
-    "vnexpress_world":  "https://vnexpress.net/rss/the-gioi.rss",
-    "vnexpress_biz":    "https://vnexpress.net/rss/kinh-doanh.rss",
-    "tuoitre_home":     "https://tuoitre.vn/rss/tin-moi-nhat.rss",
-    "dantri_home":      "https://dantri.com.vn/rss/home.rss",
+    # Tin tổng hợp
+    "vnexpress_home":       "https://vnexpress.net/rss/tin-moi-nhat.rss",
+    # Thể thao & Bóng đá (ưu tiên đầu album)
+    "vnexpress_bongda":     "https://vnexpress.net/rss/bong-da.rss",
+    "vnexpress_thethao":    "https://vnexpress.net/rss/the-thao.rss",
+    # Thời sự
+    "vnexpress_thoisu":     "https://vnexpress.net/rss/thoi-su.rss",
+    # Thế giới
+    "vnexpress_thegioi":    "https://vnexpress.net/rss/the-gioi.rss",
+    # Kinh doanh
+    "vnexpress_kinhdoanh":  "https://vnexpress.net/rss/kinh-doanh.rss",
+    # Khoa học công nghệ
+    "vnexpress_khoahoc":    "https://vnexpress.net/rss/khoa-hoc.rss",
+    "vnexpress_sohoa":      "https://vnexpress.net/rss/so-hoa.rss",
+    # Giải trí
+    "vnexpress_giaitri":    "https://vnexpress.net/rss/giai-tri.rss",
+    # Pháp luật
+    "vnexpress_phapluat":   "https://vnexpress.net/rss/phap-luat.rss",
+    # Góc nhìn
+    "vnexpress_gocnhin":    "https://vnexpress.net/rss/goc-nhin.rss",
+    # Bất động sản
+    "vnexpress_batdongsan": "https://vnexpress.net/rss/bat-dong-san.rss",
+    # Sức khỏe
+    "vnexpress_suckhoe":    "https://vnexpress.net/rss/suc-khoe.rss",
+    # Giáo dục
+    "vnexpress_giaoduc":    "https://vnexpress.net/rss/giao-duc.rss",
+    # Đời sống
+    "vnexpress_doisong":    "https://vnexpress.net/rss/doi-song.rss",
+    # Xe
+    "vnexpress_xe":         "https://vnexpress.net/rss/xe.rss",
+    # Du lịch
+    "vnexpress_dulich":     "https://vnexpress.net/rss/du-lich.rss",
+    # Ý kiến
+    "vnexpress_ykien":      "https://vnexpress.net/rss/y-kien.rss",
+    # Tâm sự
+    "vnexpress_tamsu":      "https://vnexpress.net/rss/tam-su.rss",
+    # Thư giãn
+    "vnexpress_thuGian":    "https://vnexpress.net/rss/thu-gian.rss",
 }
 
 

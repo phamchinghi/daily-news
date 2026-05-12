@@ -8,7 +8,7 @@ Yêu cầu:
 
 2 mode đăng:
   1. post_single_photo(): 1 ảnh + caption
-  2. post_multi_photo_album(): nhiều ảnh dưới dạng album (giống J2TEAM)
+  2. post_multi_photo_album(): nhiều ảnh dưới dạng album
 """
 from __future__ import annotations
 
@@ -80,7 +80,7 @@ class FacebookPublisher:
         image_paths: Sequence[str | Path],
         caption: str,
     ) -> dict:
-        """Đăng nhiều ảnh dạng album (giống bài J2TEAM grid)."""
+        """Đăng nhiều ảnh dạng album."""
         if not image_paths:
             raise ValueError("image_paths is empty")
 

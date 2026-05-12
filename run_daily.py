@@ -88,8 +88,8 @@ def build_caption(items: list[tuple[NewsItem, str]]) -> str:
     weekday = VIETNAMESE_WEEKDAYS[now.weekday()]
     date_str = now.strftime("%d/%m/%Y")
 
-    header = f"📢 DIEM TIN SANG {weekday} | {date_str}\n\n"
-    lines = ["Tin noi bat hom nay:\n"]
+    header = f"📢 ĐIỂM TIN SÁNG {weekday} | {date_str}\n\n"
+    lines = ["📌 Tin nổi bật hôm nay:\n"]
     for i, (item, link) in enumerate(items, 1):
         lines.append(f"{i}. {item.title}")
         if link:
@@ -105,8 +105,8 @@ def build_caption(items: list[tuple[NewsItem, str]]) -> str:
     hashtags = f"{base_tags} {extra_tags}".strip()
 
     cta = (
-        "\n\nTheo doi trang de cap nhat tin tuc moi nhat moi sang!"
-        "\nBan quan tam den tin nao nhat? Binh luan ben duoi nhe!"
+        "\n\nTheo dõi trang để cập nhật tin tức mỗi sáng!"
+        "\nBạn quan tâm đến tin nào nhất? Bình luận bên dưới nhé!"
     )
 
     return header + "\n".join(lines) + cta + "\n\n" + hashtags
